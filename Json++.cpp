@@ -239,6 +239,25 @@ PSTR JSON_ELEMENT::DoParse(PSTR pa, PSTR pb)
 				str = pa;
 				return pb;
 			}
+			break;
+		default:
+			PSTR pc = --pa;
+			do 
+			{
+				char c = *pa;
+				if ((ULONG)(c - '0') > (ULONG)('9' - '0') && c != '.')
+				{
+					if (pc != pa)
+					{
+						type = v_string;
+						memcpy(pc - 1, pc, pa - pc);
+						str = pc - 1;
+						pa[-1] = 0;
+						return pa;
+					}
+					return 0;
+				}
+			} while (++pa < pb);
 		}
 	}
 
