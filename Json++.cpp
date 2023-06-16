@@ -1,169 +1,10 @@
 #include "stdafx.h"
 
 _NT_BEGIN
+
 #include "json++.h"
 
-void JSON_ELEMENT::Dump(PCSTR prefix)
-{
-	if (*prefix == -1)
-	{
-		return;
-	}
-
-	char c = next ? ',' : ' ', a, b;
-
-	switch (type)
-	{
-	case v_string:
-		if (IS_INTRESOURCE(name))
-		{
-			DbgPrint("%s\"%s\"%c\n", prefix, str, c);
-		}
-		else
-		{
-			DbgPrint("%s\"%s\" : \"%s\"%c\n", prefix, name, str, c);
-		}
-		return;
-	case v_object:
-		a = '{', b = '}';
-		break;
-	case v_array:
-		a = '[', b = ']';
-		break;
-	default: return;
-	}
-	
-	if (IS_INTRESOURCE(name))
-	{
-		DbgPrint("%s%c\n", prefix, a);
-	}
-	else
-	{
-		DbgPrint("%s\"%s\" : %c\n", prefix, name, a);
-	}
-
-	--prefix;
-
-	if (JSON_ELEMENT* value = child)
-	{
-		do 
-		{
-			value->Dump(prefix);
-
-		} while (value = value->next);
-	}
-
-	++prefix;
-
-	DbgPrint("%s%c%c\n", prefix, b, c);
-}
-
-Wb& JSON_ELEMENT::operator >>(Wb& stream)
-{
-	char a, b;
-	PCSTR c = next ? "," : "";
-
-	switch (type)
-	{
-	case v_string:
-		if (IS_INTRESOURCE(name))
-		{
-			stream("\"%s\"%s", str, c);
-		}
-		else
-		{
-			stream("\"%s\":\"%s\"%s", name, str, c);
-		}
-		return stream;
-	case v_object:
-		a = '{', b = '}';
-		break;
-	case v_array:
-		a = '[', b = ']';
-		break;
-	default: return stream;
-	}
-
-	if (IS_INTRESOURCE(name))
-	{
-		stream("%c", a);
-	}
-	else
-	{
-		stream("\"%s\":%c", name, a);
-	}
-
-	if (JSON_ELEMENT* value = child)
-	{
-		do 
-		{
-			(*value) >> stream;
-
-		} while (value = value->next);
-	}
-
-	stream("%c%s", b, c);
-
-	return stream;
-}
-
-JSON_ELEMENT* JSON_ELEMENT::operator[](PCSTR Name)
-{
-	if (type == v_object)
-	{
-		if (JSON_ELEMENT* cur = child)
-		{
-			do 
-			{
-				if (!_stricmp(cur->name, Name))
-				{
-					return cur;
-				}
-			} while (cur = cur->next);
-		}
-	}
-
-	return 0;
-}
-
-JSON_ELEMENT* JSON_ELEMENT::operator[](ULONG i)
-{
-	if (type == v_array)
-	{
-		if (JSON_ELEMENT* cur = child)
-		{
-			do 
-			{
-				if (cur->name == (PCSTR)(ULONG_PTR)i)
-				{
-					return cur;
-				}
-			} while (cur = cur->next);
-		}
-	}
-
-	return 0;
-}
-
-JSON_ELEMENT::~JSON_ELEMENT()
-{
-	DbgPrint("%s<%p>\n", __FUNCTION__, this);
-
-	switch (type)
-	{
-	case v_object:
-	case v_array:
-		if (JSON_ELEMENT* value = child)
-		{
-			do 
-			{
-				JSON_ELEMENT* cur = value;
-				value = value->next;
-				delete cur;
-			} while (value);
-		}
-	}
-}
+Json Json::_G_defjs;
 
 PSTR SkipWS(PSTR pa, PSTR pb)
 {
@@ -222,54 +63,42 @@ PSTR DoParseString(PSTR pa, PSTR pb)
 	return 0;
 }
 
-PSTR JSON_ELEMENT::DoParse(PSTR pa, PSTR pb)
+PSTR Json::DoParse(PCSTR name, PSTR pa, PSTR pb)
 {
 	if (pa = SkipWS(pa, pb))
 	{
+		Json* pObj;
+
 		switch (*pa++)
 		{
 		case '{':
-			return DoParseObject(pa, pb);
+			return OnObject(name, &pObj) ? pObj->DoParseObject(pa, pb, this) : 0;
 		case '[':
-			return DoParseArray(pa, pb);
+			return OnArray(name, &pObj) ? pObj->DoParseArray(pa, pb, this) : 0;
 		case '\"':
-			if (pb = DoParseString(pa, pb))
-			{
-				type = v_string;
-				str = pa;
-				return pb;
-			}
-			break;
+			return (pb = DoParseString(pa, pb)) ? (OnString(name, pa) ? pb : 0) : 0;
 		default:
-			PSTR pc = --pa;
-			do 
+			--pa;
+
+			if (!memcmp(pa, _S_true, sizeof(_S_true) - 1))
 			{
-				char c = *pa;
-				if ((ULONG)(c - '0') > (ULONG)('9' - '0') && c != '.')
-				{
-					if (pc != pa)
-					{
-						type = v_string;
-						memcpy(pc - 1, pc, pa - pc);
-						str = pc - 1;
-						pa[-1] = 0;
-						return pa;
-					}
-					return 0;
-				}
-			} while (++pa < pb);
+				return OnBOOL(name, true) ? pa + sizeof(_S_true) - 1 : 0;
+			}
+
+			if (!memcmp(pa, _S_false, sizeof(_S_false) - 1))
+			{
+				return OnBOOL(name, false) ? pa + sizeof(_S_false) - 1 : 0;
+			}
+
+			return OnNumber(name, _strtoui64(pa, &pa, 10)) ? pa : 0;
 		}
 	}
 
 	return 0;
 }
 
-PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
+PSTR Json::DoParseObject(PSTR pa, PSTR pb, Json* pObj)
 {
-	type = v_object;
-
-	JSON_ELEMENT** pnext = &child;
-
 	bool bWaitComma = false;
 	do 
 	{
@@ -281,7 +110,7 @@ PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
 		switch (*pa++)
 		{
 		case '}':
-			return pa;
+			return pObj->OnEnd(FALSE) ? pa : 0;
 		case '\"':
 			if (bWaitComma)
 			{
@@ -289,7 +118,7 @@ PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
 			}
 			break;
 		case ',':
-			if (bWaitComma)
+			if (bWaitComma && Separator())
 			{
 				bWaitComma = false;
 				continue;
@@ -297,7 +126,7 @@ PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
 		default: return 0;
 		}
 
-		PSTR ValueName = pa;
+		PSTR name = pa;
 
 		if (!(pa = DoParseString(pa, pb)))
 		{
@@ -309,16 +138,7 @@ PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
 			return 0;
 		}
 
-		if (JSON_ELEMENT* value = new JSON_ELEMENT(ValueName))
-		{
-			*pnext = value, pnext = &value->next;
-
-			if (!(pa = value->DoParse(pa, pb)))
-			{
-				return 0;
-			}
-		}
-		else
+		if (!(pa = DoParse(name, pa, pb)))
 		{
 			return 0;
 		}
@@ -330,12 +150,8 @@ PSTR JSON_ELEMENT::DoParseObject(PSTR pa, PSTR pb)
 	return 0;
 }
 
-PSTR JSON_ELEMENT::DoParseArray(PSTR pa, PSTR pb)
+PSTR Json::DoParseArray(PSTR pa, PSTR pb, Json* pObj)
 {
-	type = v_array;
-
-	JSON_ELEMENT** pnext = &child;
-	ULONG n = 0;
 	bool bWaitComma = false;
 
 	do 
@@ -348,31 +164,19 @@ PSTR JSON_ELEMENT::DoParseArray(PSTR pa, PSTR pb)
 		switch (*pa++)
 		{
 		case ']':
-			return pa;
+			return pObj->OnEnd(TRUE) ? pa : 0;
 		case ',':
-			if (bWaitComma)
+			if (bWaitComma && Separator())
 			{
 				bWaitComma = false;
 				continue;
 			}
-			else
-			{
-				return 0;
-			}
+			return 0;
 		default: 
 			--pa;
 		}
 
-		if (JSON_ELEMENT* value = new JSON_ELEMENT(MAKEINTRESOURCEA(n++)))
-		{
-			*pnext = value, pnext = &value->next;
-
-			if (!(pa = value->DoParse(pa, pb)))
-			{
-				return 0;
-			}
-		}
-		else
+		if (!(pa = DoParse(0, pa, pb)))
 		{
 			return 0;
 		}

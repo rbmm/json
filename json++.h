@@ -1,43 +1,54 @@
 #pragma once
 
-// https://github.com/rbmm/print-buf/blob/master/wb.h
-#include "wb.h"
-
-class JSON_ELEMENT
+class Json
 {
-public:
-	enum Type { v_invalid, v_object, v_array, v_string };
-private:
-	JSON_ELEMENT* next;
-	PCSTR name;
+	PSTR DoParseObject(PSTR pa, PSTR pb, Json* pObj);
+	PSTR DoParseArray(PSTR pa, PSTR pb, Json* pObj);
 
-	union {
-		JSON_ELEMENT* child;
-		PCSTR str;
-		ULONG num;
-	};
-	Type type;
+protected:
 
-	PSTR DoParseObject(PSTR pa, PSTR pb);
-	PSTR DoParseArray(PSTR pa, PSTR pb);
-
-public:
-	PSTR DoParse(PSTR pa, PSTR pb);
-
-	Type get_type() { return type; }
-	PCSTR get_string() { return type == v_string ? str : 0; }
-	PCSTR get_name() { return IS_INTRESOURCE(name) ? 0 : name; }
-	int get_index() { return IS_INTRESOURCE(name) ? (ULONG)(ULONG_PTR)name : -1; }
-
-	JSON_ELEMENT* operator[](PCSTR Name);
-	JSON_ELEMENT* operator[](ULONG i);
-
-	JSON_ELEMENT(PCSTR name) : name(name), next(0), child(0), type(v_invalid) {
-		DbgPrint("%s<%p>\n", __FUNCTION__, this);
+	virtual BOOL OnObject(PCSTR /*name*/, Json** ppObj)
+	{
+		*ppObj = this;
+		return TRUE;
 	}
 
-	~JSON_ELEMENT();
+	virtual BOOL OnArray(PCSTR /*name*/, Json** ppObj)
+	{
+		*ppObj = this;
+		return TRUE;
+	}
 
-	Wb& operator >>(Wb& stream);
-	void Dump(PCSTR prefix);
+	virtual BOOL OnString(PCSTR /*name*/, PCSTR /*value*/)
+	{
+		return TRUE;
+	}
+
+	virtual BOOL OnBOOL(PCSTR /*name*/, BOOL /*value*/)
+	{
+		return TRUE;
+	}
+
+	virtual BOOL OnNumber(PCSTR /*name*/, ULONG64 /*value*/)
+	{
+		return TRUE;
+	}
+
+	virtual BOOL OnEnd(BOOL /*bArray*/)
+	{
+		return TRUE;
+	}
+
+	virtual BOOL Separator()
+	{
+		return TRUE;
+	}
+public:
+	PSTR DoParse(PCSTR name, PSTR pa, PSTR pb);
+
+	inline static const char _S_true[] = "true";
+	inline static const char _S_false[] = "false";
+
+	static Json _G_defjs;
 };
+
