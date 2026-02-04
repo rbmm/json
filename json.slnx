@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="json/json.vcxproj" Id="fc7145d3-bec6-be63-1eb1-2064d9d4574f" />
+</Solution>

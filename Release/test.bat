@@ -1,0 +1,1 @@
+json.exe *06.json*05.json*04.json*03.json*02.json*01.json > test.log

@@ -1,0 +1,6 @@
+{
+  "slashes": "http:\/\/example.com\/path\/",
+  "escapes": "\"quotes\", \\backslashes\\, \/slashes\/, \r\n\t\b\f",
+  "empty_str": "",
+  "long_str": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}
