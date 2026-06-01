@@ -37,7 +37,6 @@ PSTR DoParseString(PSTR pa, PSTR pb)
 			case '\"':
 				*psz = 0;
 				return pa;
-			case '/':
 			case '\f':
 			case '\b':
 			case '\n':
@@ -399,7 +398,6 @@ int StringToString(PCSTR str, PSTR buf, int len, PSTR* pbuf, int* plen)
 		{
 		case '\"':
 		case '\\':
-		case '/':
 			break;
 		case '\b':
 			c = 'b';

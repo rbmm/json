@@ -48,7 +48,7 @@ struct JsonValue
 		JsonObject* pObj;
 		JsonArray* pArr;
 	};
-	enum { v_str, v_int, v_float, v_bool, v_obj, v_arr, v_null } vt = v_null;
+	enum JVT { v_str, v_int, v_float, v_bool, v_obj, v_arr, v_null } vt = v_null;
 
 	PSTR DoParse(PSTR pa, PSTR pb, ULONG level = 64);
 	void Dump(PCSTR prefix);
