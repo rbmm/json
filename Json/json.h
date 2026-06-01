@@ -1,5 +1,30 @@
 #pragma once
 
+#ifndef DbgPrint
+EXTERN_C
+ULONG
+__cdecl
+DbgPrint(
+	_In_z_ _Printf_format_string_ PCSTR Format,
+	...
+);
+#endif
+
+//#define JDBG
+
+#ifdef JDBG
+
+#pragma message(__FILE__ "(" _CRT_STRINGIZE(__LINE__) "):" " !!! JDBG !!!")
+
+inline PVOID par(PVOID pv, char c)
+{
+	DbgPrint("%c%c 0x%p\r\n", c, c, pv);
+	return pv;
+}
+#endif // JDBG
+
+#define _JSON_
+
 struct JsonObject;
 struct JsonArray;
 
@@ -58,6 +83,18 @@ struct JsonValue
 	JsonValue(PCSTR name, JsonArray* pArr) : name(name), pArr(pArr), vt(v_arr)
 	{
 	}
+
+#ifdef JDBG
+	void* operator new(size_t s)
+	{
+		return par(LocalAlloc(LMEM_FIXED, s), '+');
+	}
+
+	void operator delete(void* pv)
+	{
+		LocalFree(par(pv, '-'));
+	}
+#endif // JDBG
 };
 
 struct JsonObjectOrArray
@@ -74,6 +111,18 @@ struct JsonObjectOrArray
 			(last ? last->next : first) = next, last = next;
 		}
 	}
+
+#ifdef JDBG
+	void* operator new(size_t s)
+	{
+		return par(LocalAlloc(LMEM_FIXED, s), '+');
+	}
+
+	void operator delete(void* pv)
+	{
+		LocalFree(par(pv, '-'));
+	}
+#endif // JDBG
 };
 
 struct JsonObject : JsonObjectOrArray
@@ -81,11 +130,23 @@ struct JsonObject : JsonObjectOrArray
 	PSTR DoParse(PSTR pa, PSTR pb, ULONG level);
 	int ToString(PSTR buf, int len, PSTR* pbuf, int* plen);
 	JsonValue* operator[](PCSTR name);
+
+	template<typename Type>
+	void SetValue(PCSTR name, Type arg)
+	{
+		insert(new JsonValue(name, arg));
+	}
 };
 
 struct JsonArray : JsonObjectOrArray
 {
 	PSTR DoParse(PSTR pa, PSTR pb, ULONG level);
 	int ToString(PSTR buf, int len, PSTR* pbuf, int* plen);
+
+	template<typename Type>
+	void push_back(Type arg)
+	{
+		insert(new JsonValue(0, arg));
+	}
 };
 

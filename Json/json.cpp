@@ -328,15 +328,25 @@ PSTR JsonArray::DoParse(PSTR pa, PSTR pb, ULONG level)
 	return 0;
 }
 
+template<typename Type>
+void DeleteIfNotInStack(Type* pv)
+{
+	if (pv)
+	{
+		PNT_TIB tib = (PNT_TIB)NtCurrentTeb();
+		if (pv < tib->StackLimit || tib->StackBase <= pv) delete pv;
+	}
+}
+
 JsonValue::~JsonValue()
 {
 	switch (vt)
 	{
 	case v_obj:
-		if (pObj) delete pObj;
+		DeleteIfNotInStack(pObj);
 		break;
 	case v_arr:
-		if (pArr) delete pArr;
+		DeleteIfNotInStack(pArr);
 		break;
 	}
 
@@ -351,7 +361,7 @@ JsonObjectOrArray::~JsonObjectOrArray()
 		{
 			JsonValue* cur = next;
 			next = next->next;
-			delete cur;
+			DeleteIfNotInStack(cur);
 		} while (next);
 	}
 }
@@ -519,7 +529,12 @@ int JsonArray::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		buf[-1] = ']';
 	}
 
-	*pbuf = buf, * plen = len;
+	if (len)
+	{
+		*buf = 0;
+	}
+
+	*pbuf = buf, *plen = len;
 
 	return s;
 }
@@ -572,7 +587,12 @@ int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		buf[-1] = '}';
 	}
 
-	*pbuf = buf, * plen = len;
+	if (len)
+	{
+		*buf = 0;
+	}
+
+	*pbuf = buf, *plen = len;
 
 	return s;
 }
