@@ -18,7 +18,7 @@ DbgPrint(
 
 inline PVOID par(PVOID pv, char c)
 {
-	DbgPrint("%c%c 0x%p\r\n", c, c, pv);
+	DbgPrint("[%c%c] 0x%p\r\n", c, c, pv);
 	return pv;
 }
 #endif // JDBG
@@ -56,7 +56,7 @@ struct JsonValue
 
 	~JsonValue();
 
-	JsonValue(PCSTR name = 0) : name(name)
+	JsonValue(PCSTR name = 0) : name(name), pcstr(0)
 	{
 	}
 
@@ -100,17 +100,19 @@ struct JsonValue
 struct JsonObjectOrArray
 {
 	JsonValue* first = 0;
-	JsonValue* last = 0;
+	JsonValue* last = CONTAINING_RECORD(&first, JsonValue, next);
 
 	~JsonObjectOrArray();
 
-	void insert(JsonValue* next)
+	void insert(_In_ JsonValue* value)
 	{
-		if (next)
+		if (value)
 		{
-			(last ? last->next : first) = next, last = next;
+			last->next = value, last = value;
 		}
 	}
+
+	void remove(_In_ JsonValue* value);
 
 #ifdef JDBG
 	void* operator new(size_t s)
@@ -129,7 +131,7 @@ struct JsonObject : JsonObjectOrArray
 {
 	PSTR DoParse(PSTR pa, PSTR pb, ULONG level);
 	int ToString(PSTR buf, int len, PSTR* pbuf, int* plen);
-	JsonValue* operator[](PCSTR name);
+	JsonValue* operator[](_In_ PCSTR name);
 
 	template<typename Type>
 	void SetValue(PCSTR name, Type arg)

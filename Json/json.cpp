@@ -365,7 +365,29 @@ JsonObjectOrArray::~JsonObjectOrArray()
 	}
 }
 
-JsonValue* JsonObject::operator[](PCSTR name)
+void JsonObjectOrArray::remove(_In_ JsonValue* value)
+{
+	JsonValue* prev = CONTAINING_RECORD(&first, JsonValue, next), *next;
+
+	do 
+	{
+		if (value == (next = prev->next))
+		{
+			prev->next = value->next;
+			if (last == value)
+			{
+				last = prev;
+			}
+			DeleteIfNotInStack(value);
+			return;
+		}
+
+	} while (prev = next);
+
+	__debugbreak();
+}
+
+JsonValue* JsonObject::operator[](_In_ PCSTR name)
 {
 	if (JsonValue* next = first)
 	{
