@@ -44,28 +44,31 @@ PSTR DoParseString(PSTR pa, PSTR pb)
 			case '\t':
 				return 0;
 			case '\\':
-				switch (c = *pa++)
+				if (pa < pb)
 				{
-				case '\"':
-				case '\\':
-				case '/':
-					*psz++ = c;
-					continue;
-				case 'b':
-					*psz++ = '\b';
-					continue;
-				case 'n':
-					*psz++ = '\n';
-					continue;
-				case 'r':
-					*psz++ = '\r';
-					continue;
-				case 'f':
-					*psz++ = '\f';
-					continue;
-				case 't':
-					*psz++ = '\t';
-					continue;
+					switch (c = *pa++)
+					{
+					case '\"':
+					case '\\':
+					case '/':
+						*psz++ = c;
+						continue;
+					case 'b':
+						*psz++ = '\b';
+						continue;
+					case 'n':
+						*psz++ = '\n';
+						continue;
+					case 'r':
+						*psz++ = '\r';
+						continue;
+					case 'f':
+						*psz++ = '\f';
+						continue;
+					case 't':
+						*psz++ = '\t';
+						continue;
+					}
 				}
 				return 0;
 			default:
