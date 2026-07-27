@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+_NT_BEGIN
+
 #include "json.h"
 
 PSTR SkipWS(PSTR pa, PSTR pb)
@@ -81,14 +83,16 @@ PSTR DoParseString(PSTR pa, PSTR pb)
 	return 0;
 }
 
-PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
+PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 {
+#ifdef _WIN32
 	ULONG_PTR LowLimit, HighLimit;
 	GetCurrentThreadStackLimits(&LowLimit, &HighLimit);
 	if ((ULONG_PTR)_AddressOfReturnAddress() - LowLimit < 0x4000)
 	{
 		return 0;
 	}
+#endif
 
 	if (pa = SkipWS(pa, pb))
 	{
@@ -97,34 +101,16 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 		switch (*pa++)
 		{
 		case '{':
-			if (JsonObject* p = new JsonObject)
-			{
-				if (pa = p->DoParse(pa, pb, level))
-				{
-					pObj = p;
-					vt = JsonValue::v_obj;
-					return pa;
-				}
-				delete p;
-			}
-			return 0;
+			vt = v_obj;
+			return DoParseObject(pa, pb, level);
 
 		case '[':
-			if (JsonArray* p = new JsonArray)
-			{
-				if (pa = p->DoParse(pa, pb, level))
-				{
-					pArr = p;
-					vt = JsonValue::v_arr;
-					return pa;
-				}
-				delete p;
-			}
-			return 0;
+			vt = v_arr;
+			return DoParseArray(pa, pb, level);
 
 		case '\"':
 			pcstr = pa;
-			vt = JsonValue::v_str;
+			vt = v_str;
 			if (pa = DoParseString(pa, pb))
 			{
 				return pa;
@@ -137,7 +123,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 				'e' == *pa++)
 			{
 				bVal = true;
-				vt = JsonValue::v_bool;
+				vt = v_bool;
 				return pa;
 			}
 			return 0;
@@ -149,7 +135,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 				'e' == *pa++)
 			{
 				bVal = false;
-				vt = JsonValue::v_bool;
+				vt = v_bool;
 				return pa;
 			}
 			return 0;
@@ -160,7 +146,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 				'l' == *pa++)
 			{
 				bVal = true;
-				vt = JsonValue::v_null;
+				vt = v_null;
 				return pa;
 			}
 			return 0;
@@ -183,7 +169,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 			case ',':
 			case ']':
 			case '}':
-				vt = JsonValue::v_int;
+				vt = v_int;
 				if (bNegative)
 				{
 					iVal = -iVal;
@@ -205,7 +191,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 				case ',':
 				case ']':
 				case '}':
-					vt = JsonValue::v_float;
+					vt = v_float;
 					fVal.neg = bNegative;
 					fVal.xxx = iVal;
 					fVal.yyy = LowPart;
@@ -222,7 +208,7 @@ PSTR JsonValue::DoParse(PSTR pa, PSTR pb, ULONG level)
 	return 0;
 }
 
-PSTR JsonObject::DoParse(PSTR pa, PSTR pb, ULONG level)
+PSTR JNode::DoParseObject(PSTR pa, PSTR pb, ULONG level)
 {
 	if (!--level)
 	{
@@ -245,7 +231,7 @@ PSTR JsonObject::DoParse(PSTR pa, PSTR pb, ULONG level)
 					return 0;
 				}
 				bWaitComma = true;
-				if (JsonValue* pval = new JsonValue(pa))
+				if (JNode* pval = new JNode(pa))
 				{
 					if ((pa = DoParseString(pa, pb)) &&
 						(pa = SkipWS(pa, pb)) && ':' == *pa++ &&
@@ -277,7 +263,7 @@ PSTR JsonObject::DoParse(PSTR pa, PSTR pb, ULONG level)
 	return 0;
 }
 
-PSTR JsonArray::DoParse(PSTR pa, PSTR pb, ULONG level)
+PSTR JNode::DoParseArray(PSTR pa, PSTR pb, ULONG level)
 {
 	if (!--level)
 	{
@@ -308,7 +294,7 @@ PSTR JsonArray::DoParse(PSTR pa, PSTR pb, ULONG level)
 					return 0;
 				}
 				bWaitComma = true;
-				if (JsonValue* pval = new JsonValue)
+				if (JNode* pval = new JNode)
 				{
 					if (pa = pval->DoParse(pa - 1, pb, level))
 					{
@@ -335,72 +321,104 @@ void DeleteIfNotInStack(Type* pv)
 {
 	if (pv)
 	{
+#ifdef _WIN32
 		PNT_TIB tib = (PNT_TIB)NtCurrentTeb();
 		if (pv < tib->StackLimit || tib->StackBase <= pv) delete pv;
+#else
+#error !!
+#endif // _WIN32
 	}
 }
 
-JsonValue::~JsonValue()
+JNode::~JNode()
 {
 	switch (vt)
 	{
 	case v_obj:
-		DeleteIfNotInStack(pObj);
-		break;
 	case v_arr:
-		DeleteIfNotInStack(pArr);
+		if (JNode* value = first)
+		{
+			do
+			{
+				JNode* cur = value;
+				value = value->next;
+				DeleteIfNotInStack(cur);
+			} while (value);
+		}
 		break;
 	}
 
 	vt = v_null;
 }
 
-JsonObjectOrArray::~JsonObjectOrArray()
+void JNode::insert(_In_ JNode* value)
 {
-	if (JsonValue* next = first)
+	switch (vt)
 	{
-		do
-		{
-			JsonValue* cur = next;
-			next = next->next;
-			DeleteIfNotInStack(cur);
-		} while (next);
+	case v_obj:
+	case v_arr:
+		break;
+	default:
+		__debugbreak();
+		return;
 	}
+	JNode* Last = CONTAINING_RECORD(&first, JNode, next), *Next;
+
+	while (Next = Last->next)
+	{
+		Last = Next;
+	}
+
+	Last->next = value;
 }
 
-void JsonObjectOrArray::remove(_In_ JsonValue* value)
+void JNode::remove(_In_ JNode* value)
 {
-	JsonValue* prev = CONTAINING_RECORD(&first, JsonValue, next), *next;
+	switch (vt)
+	{
+	case v_obj:
+	case v_arr:
+		break;
+	default:
+		__debugbreak();
+		return;
+	}
+	JNode* Prev = CONTAINING_RECORD(&first, JNode, next), *Next;
 
 	do 
 	{
-		if (value == (next = prev->next))
+		if (value == (Next = Prev->next))
 		{
-			prev->next = value->next;
-			if (last == value)
-			{
-				last = prev;
-			}
+			Prev->next = value->next;
 			DeleteIfNotInStack(value);
 			return;
 		}
 
-	} while (prev = next);
+	} while (Prev = Next);
 
 	__debugbreak();
 }
 
-JsonValue* JsonObject::operator[](_In_ PCSTR name)
+JNode* JNode::operator[](_In_ PCSTR Name)
 {
-	if (JsonValue* next = first)
+	switch (vt)
+	{
+	case v_obj:
+		break;
+	default:
+		__debugbreak();
+		return 0;
+	}
+
+	if (JNode* value = first)
 	{
 		do
 		{
-			if (!strcmp(next->name, name))
+			if (!strcmp(value->name, Name))
 			{
-				return next;
+				return value;
 			}
-		} while (next = next->next);
+		} while (value = value->next);
 	}
 
 	return 0;
@@ -469,7 +487,7 @@ int StringToString(PCSTR str, PSTR buf, int len, PSTR* pbuf, int* plen)
 	return s;
 }
 
-int JsonValue::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
+int JNode::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 {
 	int s;
 
@@ -483,10 +501,10 @@ int JsonValue::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		break;
 
 	case v_obj:
-		return pObj->ToString(buf, len, pbuf, plen);
+		return ObjectToString(buf, len, pbuf, plen);
 
 	case v_arr:
-		return pArr->ToString(buf, len, pbuf, plen);
+		return ArrayToString(buf, len, pbuf, plen);
 
 	case v_bool:
 		s = _snprintf(buf, len, bVal ? "true" : "false");
@@ -514,7 +532,7 @@ int JsonValue::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 	return s;
 }
 
-int JsonArray::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
+int JNode::ArrayToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 {
 	int s = 1;
 	if (len)
@@ -522,11 +540,11 @@ int JsonArray::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		*buf++ = '[', --len;
 	}
 
-	if (JsonValue* next = first)
+	if (JNode* value = first)
 	{
 		do
 		{
-			int l = next->ToString(buf, len, &buf, &len);
+			int l = value->ToString(buf, len, &buf, &len);
 			if (0 > l)
 			{
 				return l;
@@ -536,7 +554,7 @@ int JsonArray::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 			{
 				*buf++ = ',', --len;
 			}
-		} while (next = next->next);
+		} while (value = value->next);
 	}
 	else
 	{
@@ -562,7 +580,7 @@ int JsonArray::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 	return s;
 }
 
-int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
+int JNode::ObjectToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 {
 	int s = 1;
 	if (len)
@@ -570,11 +588,11 @@ int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		*buf++ = '{', --len;
 	}
 
-	if (JsonValue* next = first)
+	if (JNode* value = first)
 	{
 		do
 		{
-			int l = StringToString(next->name, buf, len, &buf, &len);
+			int l = StringToString(value->name, buf, len, &buf, &len);
 			if (0 > l)
 			{
 				return l;
@@ -584,7 +602,7 @@ int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 			{
 				*buf++ = ':', --len;
 			}
-			l = next->ToString(buf, len, &buf, &len);
+			l = value->ToString(buf, len, &buf, &len);
 			if (0 > l)
 			{
 				return l;
@@ -594,7 +612,7 @@ int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 			{
 				*buf++ = ',', --len;
 			}
-		} while (next = next->next);
+		} while (value = value->next);
 	}
 	else
 	{
@@ -619,3 +637,37 @@ int JsonObject::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 
 	return s;
 }
+
+#ifdef _WIN32
+
+#include "../inc/rtlframe.h"
+
+void* JNode::operator new(size_t s)
+{
+	if (JHeapPtr* heap = RTL_FRAME<JHeapPtr>::get())
+	{
+		if (PVOID pv = heap->heap->Alloc(s))
+		{
+			return pv;
+		}
+	}
+	
+	return LocalAlloc(LMEM_FIXED, s);
+}
+
+void JNode::operator delete(void* pv)
+{
+	if (JHeapPtr* heap = RTL_FRAME<JHeapPtr>::get())
+	{
+		if (heap->heap->Free(pv))
+		{
+			return;
+		}
+	}
+
+	LocalFree(pv);
+}
+
+#endif // _WIN32
+
+_NT_END
