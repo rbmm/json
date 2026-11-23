@@ -4,6 +4,17 @@ _NT_BEGIN
 
 #include "json.h"
 
+unsigned __int64 strtoui(_In_z_ const char * _String, _Out_opt_ _Deref_post_z_ char ** _EndPtr)
+{
+	__try {
+		return _strtoui64(_String, _EndPtr, 10);
+	} __except(EXCEPTION_EXECUTE_HANDLER) {
+	}
+
+	*_EndPtr = (char*)MAXULONGLONG;
+	return MAXULONGLONG;
+}
+
 PSTR SkipWS(PSTR pa, PSTR pb)
 {
 	if (pa < pb)
@@ -118,7 +129,8 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			return 0;
 
 		case 't':
-			if ('r' == *pa++ &&
+			if (pa + 3 < pb &&
+				'r' == *pa++ &&
 				'u' == *pa++ &&
 				'e' == *pa++)
 			{
@@ -129,7 +141,8 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			return 0;
 
 		case 'f':
-			if ('a' == *pa++ &&
+			if (pa + 4 < pb &&
+				'a' == *pa++ &&
 				'l' == *pa++ &&
 				's' == *pa++ &&
 				'e' == *pa++)
@@ -141,7 +154,8 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			return 0;
 
 		case 'n':
-			if ('u' == *pa++ &&
+			if (pa + 3 < pb &&
+				'u' == *pa++ &&
 				'l' == *pa++ &&
 				'l' == *pa++)
 			{
@@ -156,7 +170,7 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			pa++;
 		default:
 			pb = --pa;
-			if (0 > (iVal = _strtoui64(pa, &pa, 10)) || pb == pa)
+			if (0 > (iVal = strtoui(pa, &pa)) || pb <= pa)
 			{
 				return 0;
 			}
@@ -177,8 +191,8 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 				return pa;
 			case '.':
 				pb = ++pa;
-				ULONG64 LowPart = _strtoui64(pa, &pa, 10);
-				if (99999999 < LowPart || MAXLONG < iVal || pb == pa)
+				ULONG64 LowPart = strtoui(pa, &pa);
+				if (99999999 < LowPart || MAXLONG < iVal || pb <= pa)
 				{
 					return 0;
 				}
