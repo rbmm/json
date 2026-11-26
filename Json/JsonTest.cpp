@@ -1,8 +1,7 @@
 #include "stdafx.h"
-#include "json.h"
 
 _NT_BEGIN
-
+#include "json.h"
 #include "print.h"
 
 void print(ULONG len, PCSTR buf)
@@ -25,7 +24,7 @@ void print(ULONG len, PCSTR buf)
 	DbgPrint("\r\n\r\n");
 }
 
-void print(JsonValue* value, PSTR str = 0)
+void print(JNode* value, PSTR str = 0)
 {
 	int len = 0;
 	PSTR buf = 0, psz = 0;
@@ -48,7 +47,7 @@ void print(JsonValue* value, PSTR str = 0)
 				{
 					memcpy(str, buf, len + 1);
 
-					JsonValue val;
+					JNode val;
 					if (val.DoParse(buf, psz))
 					{
 						print(&val, str);
@@ -79,13 +78,6 @@ void print(JsonValue* value, PSTR str = 0)
 	if (buf) _freea(buf);
 }
 
-void print(JsonObject* pObj)
-{
-	JsonValue value(0, pObj);
-	print(&value);
-	value.pObj = 0;
-}
-
 NTSTATUS ReadFromFile(_In_ PCWSTR lpFileName, _Out_ PVOID* ppb, _Out_ ULONG* pcb, _In_ ULONG _cb = 0, _In_ ULONG cb_ = 0);
 
 void TestJson(PCWSTR lpFileName)
@@ -107,7 +99,7 @@ void TestJson(PCWSTR lpFileName)
 			do
 			{
 				DbgPrint("\r\n**********************************\r\n\r\n");
-				JsonValue value;
+				JNode value;
 				if (pa = value.DoParse(pa, end))
 				{
 					print(&value);
@@ -125,34 +117,17 @@ void TestJson(PCWSTR lpFileName)
 
 void simplydemo()
 {
-	if (JsonObject* pObj = new JsonObject)
+	JNode obj(JNode::v_obj), arr("skills", JNode::v_arr);
+	arr.insert(new JNode(0, "JavaScript"));
+	arr.insert(new JNode(0, "HTML"));
+	obj.insert(&arr);
+	obj.insert(new JNode("name\r\n\test\"/\\\"[]", -581LL));
+	obj.insert(new JNode("key", "Jane \"(())\" Doe"));
+	print(&obj);
+
+	if (JNode* v = obj["key"])
 	{
-		if (JsonArray* pArr = new JsonArray)
-		{
-			pArr->insert(new JsonValue(0, "JavaScript"));
-			pArr->insert(new JsonValue(0, "HTML"));
-
-			if (JsonValue* value = new JsonValue("skills", pArr))
-			{
-				pObj->insert(value);
-			}
-			else
-			{
-				delete pArr;
-			}
-		}
-
-		pObj->insert(new JsonValue("name\r\n\test\"/\\\"[]", -581LL));
-		pObj->insert(new JsonValue("key", "Jane \"(())\" Doe"));
-
-		print(pObj);
-
-		if (JsonValue* value = (*pObj)["key"])
-		{
-			print(value);
-		}
-
-		delete pObj;
+		print(v);
 	}
 }
 

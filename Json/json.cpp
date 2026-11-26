@@ -170,7 +170,7 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			pa++;
 		default:
 			pb = --pa;
-			if (0 > (iVal = strtoui(pa, &pa)) || pb <= pa)
+			if (0 > (iVal = strtoui(pa, &pa)) || pb == pa)
 			{
 				return 0;
 			}
@@ -192,7 +192,7 @@ PSTR JNode::DoParse(PSTR pa, PSTR pb, ULONG level)
 			case '.':
 				pb = ++pa;
 				ULONG64 LowPart = strtoui(pa, &pa);
-				if (99999999 < LowPart || MAXLONG < iVal || pb <= pa)
+				if (99999999 < LowPart || MAXLONG < iVal || pb == pa)
 				{
 					return 0;
 				}
@@ -525,7 +525,7 @@ int JNode::ToString(PSTR buf, int len, PSTR* pbuf, int* plen)
 		break;
 
 	case v_float:
-		s = _snprintf(buf, len, "%c%u.%0*u", fVal.neg ? '-' : ' ', (ULONG)fVal.xxx, (ULONG)fVal.len, (ULONG)fVal.yyy);
+		s = _snprintf(buf, len, "-%u.%0*u" + !fVal.neg, (ULONG)fVal.xxx, (ULONG)fVal.len, (ULONG)fVal.yyy);
 		break;
 
 	case v_null:
