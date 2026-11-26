@@ -428,9 +428,12 @@ JNode* JNode::operator[](_In_ PCSTR Name)
 	{
 		do
 		{
-			if (!strcmp(value->name, Name))
+			if (PCSTR name = value->name)
 			{
-				return value;
+				if (!strcmp(name, Name))
+				{
+					return value;
+				}
 			}
 		} while (value = value->next);
 	}
